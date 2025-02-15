@@ -1,89 +1,74 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
 
-try:
-    import screeninfo
-    screen = screeninfo.get_monitors()[0]
-    SCREEN_WIDTH, SCREEN_HEIGHT = screen.width, screen.height
-except:
-    # Fallback if screeninfo is not available or fails
-    SCREEN_WIDTH, SCREEN_HEIGHT = 1920, 1080
 
 def generate_temperature_matrix():
     """
     Generate a random 100x100 matrix of temperature values.
-    (Replace this with your actual data source as needed.)
+    Replace this with your real data source as needed.
     """
     return np.random.uniform(20, 80, (100, 100))
 
-def normalize_temperature(data):
-    """
-    Normalize temperature values to range 0-255.
-    White = Hot, Black = Cold.
-    """
-    min_temp, max_temp = data.min(), data.max()
-    normalized = 255 * ((data - min_temp) / (max_temp - min_temp))
-    return normalized.astype(np.uint8)
 
-def upscale_image(image_array, width, height):
-    """
-    Upscale the 100x100 image to the screen resolution using
-    PIL's bicubic interpolation for smooth edges.
-    """
-    from PIL import Image
-    image = Image.fromarray(image_array)
-    return image.resize((width, height), Image.BICUBIC)
+# 1) Create a custom colormap: Blue -> Yellow -> Red
+colors = [
+    (0, 0, 1),  # Blue
+    (1, 1, 0),  # Yellow
+    (1, 0, 0)  # Red
+]
+blue_yellow_red = LinearSegmentedColormap.from_list(
+    "blue_yellow_red", colors, N=256
+)
 
-
-# -----------------------------------------------------------------------
-#  1) Set up Matplotlib for a minimal fullscreen display
-# -----------------------------------------------------------------------
-plt.ion()  # Interactive mode for continuous updating
+# 2) Set up interactive plotting
+plt.ion()
 fig, ax = plt.subplots()
 
-# Hide the toolbar (top-left of the figure)
-plt.rcParams['toolbar'] = 'None'
-
-# Attempt to make the figure fullscreen
+# Attempt full-screen
 manager = plt.get_current_fig_manager()
 try:
     manager.full_screen_toggle()
 except AttributeError:
-    # Some backends may not have full_screen_toggle()
-    # Try a generic approach:
-    manager.window.state('zoomed') if hasattr(manager.window, 'state') else None
+    pass
 
-# Remove extra margins around the image
-plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+# Generate initial temperature data
+temperature_data = generate_temperature_matrix()
 
-# Hide axes for a clean look
-ax.axis("off")
+# Show the data with a stable range (20°C to 80°C) so colorbar stays consistent
+im = ax.imshow(
+    temperature_data,
+    cmap=blue_yellow_red,
+    interpolation='bicubic',
+    origin='lower',  # (0,0) at the bottom-left
+    vmin=20,
+    vmax=80
+)
 
-# Give the window a more descriptive title (optional)
-fig.canvas.manager.set_window_title("Real-Time Temperature Visualization")
+# Add a color bar (the side bar with temperatures)
+cbar = fig.colorbar(im, ax=ax, orientation='vertical', label='Temperature (°C)')
 
-# -----------------------------------------------------------------------
-#  2) Main Loop: Update the visualization every second
-# -----------------------------------------------------------------------
+# Remove axis labels & ticks
+ax.set_xticks([])
+ax.set_yticks([])
+
+# Optional: set a title (comment out if you want no text at all)
+ax.set_title('Real-Time Temperature Visualization')
+
+# Ensure color bar and image fit nicely
+plt.tight_layout()
+plt.show()
+
+# 3) Update loop
 while True:
-    # Generate or fetch your 100x100 temperature data
+    # Generate new temperature data each second
     temperature_data = generate_temperature_matrix()
 
-    # Normalize to grayscale: White = hot, Black = cold
-    grayscale_image = normalize_temperature(temperature_data)
+    # Update the existing image
+    im.set_data(temperature_data)
 
-    # Upscale the grayscale image to fit the entire screen
-    upscaled_image = upscale_image(grayscale_image, SCREEN_WIDTH, SCREEN_HEIGHT)
+    # Redraw the figure
+    fig.canvas.draw_idle()
 
-    # Clear previous frame
-    ax.clear()
-    ax.axis("off")  # Keep axes hidden
-
-    # Display the new frame
-    ax.imshow(upscaled_image, cmap="gray", aspect="auto")
-
-    # Draw and pause so the figure updates
-    plt.pause(1)  # 1 second delay
-
-plt.ioff()
-plt.show()
+    # Pause for 1 second
+    plt.pause(1)
