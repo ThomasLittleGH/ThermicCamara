@@ -60,4 +60,4 @@ def render(temperature_data):
     im.set_data(temperature_data)
 
     # Redraw the figure
-    fig.canvas.draw_idle()
+    fig.canvas.draw_idle()  
