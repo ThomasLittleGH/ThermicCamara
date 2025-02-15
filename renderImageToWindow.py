@@ -1,17 +1,19 @@
-import cv2
+import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image
 
-# Get screen resolution dynamically
-screen_width = cv2.getWindowImageRect("Temperature Visualization")[2] if cv2.getWindowImageRect(
-    "Temperature Visualization") else 1920
-screen_height = cv2.getWindowImageRect("Temperature Visualization")[3] if cv2.getWindowImageRect(
-    "Temperature Visualization") else 1080
+# Get screen resolution dynamically (may need adjustments based on your OS)
+try:
+    import screeninfo
 
+    screen = screeninfo.get_monitors()[0]
+    SCREEN_WIDTH, SCREEN_HEIGHT = screen.width, screen.height
+except:
+    SCREEN_WIDTH, SCREEN_HEIGHT = 1920, 1080  # Fallback default
 
 def generate_temperature_matrix():
     """Generate a random 100x100 matrix of temperature values (Replace with actual data)."""
     return np.random.uniform(20, 80, (100, 100))  # Simulated temperature range (20°C to 80°C)
-
 
 def normalize_temperature(data):
     """Normalize temperature values to range 0-255 for grayscale mapping."""
@@ -20,30 +22,34 @@ def normalize_temperature(data):
     return normalized.astype(np.uint8)
 
 
-def upscale_image(image, target_width, target_height):
-    """Upscale the image smoothly to fit the screen."""
-    return cv2.resize(image, (target_width, target_height), interpolation=cv2.INTER_CUBIC)
+def upscale_image(image_array, width, height):
+    """Upscale image using PIL's bicubic interpolation to smooth it out."""
+    image = Image.fromarray(image_array)  # Convert NumPy array to PIL Image
+    return image.resize((width, height), Image.BICUBIC)
 
 
-# Create window for display
-cv2.namedWindow("Temperature Visualization", cv2.WINDOW_NORMAL)
+# Create a Matplotlib figure for display
+plt.ion()  # Enable interactive mode
+fig, ax = plt.subplots()
+fig.canvas.manager.set_window_title("Temperature Visualization")
 
 while True:
     # Generate new temperature data
     temperature_data = generate_temperature_matrix()
 
     # Convert temperature matrix to grayscale image
-    gray_image = normalize_temperature(temperature_data)
+    grayscale_image = normalize_temperature(temperature_data)
 
-    # Upscale the image to screen resolution
-    upscaled_image = upscale_image(gray_image, screen_width, screen_height)
+    # Upscale image to full screen
+    upscaled_image = upscale_image(grayscale_image, SCREEN_WIDTH, SCREEN_HEIGHT)
 
-    # Show the updated image
-    cv2.imshow("Temperature Visualization", upscaled_image)
+    # Display the image using Matplotlib
+    ax.clear()
+    ax.imshow(upscaled_image, cmap="gray", aspect="auto")  # Show in grayscale
+    ax.axis("off")  # Hide axes
 
-    # Wait for 1 second, exit if 'q' is pressed
-    if cv2.waitKey(1000) & 0xFF == ord('q'):
-        break
+    # Update the display
+    plt.pause(1)  # Wait 1 second before next update
 
-# Close the window when done
-cv2.destroyAllWindows()
+plt.ioff()  # Disable interactive mode when done
+plt.show()
