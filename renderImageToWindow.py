@@ -48,27 +48,16 @@ im = ax.imshow(
 # Add a color bar (the side bar with temperatures)
 cbar = fig.colorbar(im, ax=ax, orientation='vertical', label='Temperature (°C)')
 
-# Remove axis labels & ticks
-ax.set_xticks([])
-ax.set_yticks([])
-
 # Optional: set a title (comment out if you want no text at all)
-ax.set_title('Real-Time Temperature Visualization')
+# ax.set_title('Real-Time Temperature Visualization')
 
 # Ensure color bar and image fit nicely
 plt.tight_layout()
 plt.show()
 
-# 3) Update loop
-while True:
-    # Generate new temperature data each second
-    temperature_data = generate_temperature_matrix()
-
+def render(temperature_data):
     # Update the existing image
     im.set_data(temperature_data)
 
     # Redraw the figure
     fig.canvas.draw_idle()
-
-    # Pause for 1 second
-    plt.pause(1)
