@@ -31,30 +31,38 @@ blue_yellow_red = LinearSegmentedColormap.from_list("blue_yellow_red", colors, N
 
 # --- Initialize Matplotlib UI ---
 plt.ion()
-fig, axes = plt.subplots(1, 3, figsize=(12, 5))  # 3 Panels: Heatmap, Webcam, Data List
+fig, axes = plt.subplots(2, 2, figsize=(16, 9), gridspec_kw={'height_ratios': [4, 1], 'width_ratios': [4, 1]})
+# Large heatmap, small webcam, and values
 
-# Heatmap Panel
+# Make it fullscreen
+manager = plt.get_current_fig_manager()
+try:
+    manager.full_screen_toggle()
+except AttributeError:
+    pass
+
+# Heatmap Panel (Larger)
 temperature_data = np.zeros((height, width))
-heatmap_ax = axes[0]
+heatmap_ax = axes[0, 0]
 heatmap_im = heatmap_ax.imshow(
     temperature_data, cmap=blue_yellow_red, interpolation='bicubic', origin='lower', vmin=20, vmax=50
 )
-heatmap_ax.set_title("Thermal Heatmap")
+heatmap_ax.set_title("Thermal Heatmap", fontsize=14)
 fig.colorbar(heatmap_im, ax=heatmap_ax, orientation='vertical', label='Temperature (°C)')
 
-# Webcam Panel
-webcam_ax = axes[1]
+# Webcam Panel (Smaller)
+webcam_ax = axes[1, 0]
 webcam_im = webcam_ax.imshow(np.zeros((webcam_height, webcam_width, 3), dtype=np.uint8))
-webcam_ax.set_title("Webcam View")
+webcam_ax.set_title("Webcam", fontsize=12)
 
-# Recent Values Panel
-values_ax = axes[2]
+# Recent Values Panel (Fixed!)
+values_ax = axes[0, 1]  # FIX: Select only one subplot
 detected_values = []
-values_text = values_ax.text(0.5, 0.5, "", fontsize=12, va="center", ha="center")
+values_text = values_ax.text(0.5, 0.5, "", fontsize=14, va="center", ha="center")
 values_ax.set_xlim(0, 1)
 values_ax.set_ylim(0, 1)
 values_ax.axis("off")  # Hide axes
-values_ax.set_title("Recent Values")
+values_ax.set_title("Temperaturas recientes", fontsize=12)
 
 plt.tight_layout()
 plt.show()
