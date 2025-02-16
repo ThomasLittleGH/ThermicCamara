@@ -4,7 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f2b82d80-7602-40a9-a85e-44589d8f2f9e" name="Changes" comment="Test commit2" />
+    <list default="true" id="f2b82d80-7602-40a9-a85e-44589d8f2f9e" name="Changes" comment="Test commit4">
+      <change afterPath="$PROJECT_DIR$/camaraToListData.old.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/script.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/camaraToListData.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/renderImageToWindow.py" beforeDir="false" afterPath="$PROJECT_DIR$/renderImageToWindow.old.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -15,6 +21,13 @@
       <list>
         <option value="Python Script" />
       </list>
+    </option>
+  </component>
+  <component name="Git.Pull.Settings">
+    <option name="OPTIONS">
+      <set>
+        <option value="SQUASH" />
+      </set>
     </option>
   </component>
   <component name="Git.Settings">
@@ -28,6 +41,18 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="SIGN_OFF_COMMIT" value="true" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "ThomasLittleGH"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "git@github.com:ThomasLittleGH/ThermicCamara.git",
+    "accountId": "980d551d-6e8d-44c2-886a-87d1345362b3"
+  }
+}]]></component>
   <component name="ProjectColorInfo"><![CDATA[{
   "associatedIndex": 6
 }]]></component>
@@ -41,7 +66,9 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Python.camaraToListData.executor": "Run",
     "Python.renderImageToWindow.executor": "Run",
+    "Python.script.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "main"
   }
@@ -86,7 +113,15 @@
       <option name="project" value="LOCAL" />
       <updated>1739652850529</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Test commit4">
+      <option name="closed" value="true" />
+      <created>1739653310803</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1739653310803</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -113,7 +148,8 @@
     <MESSAGE value="Test commit" />
     <MESSAGE value="Test commit1" />
     <MESSAGE value="Test commit2" />
-    <option name="LAST_COMMIT_MESSAGE" value="Test commit2" />
+    <MESSAGE value="Test commit4" />
+    <option name="LAST_COMMIT_MESSAGE" value="Test commit4" />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REFORMAT_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REARRANGE_BEFORE_PROJECT_COMMIT" value="true" />
