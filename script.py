@@ -106,8 +106,10 @@ try:
 except KeyboardInterrupt:
     print("\nProcess interrupted manually.")
 
+# Keep UI open at the end
+plt.ioff()
+print("Rendering complete! Close the window to exit.")
+plt.show()  # Keeps the final frame open until the user closes it
+
 # Cleanup
 cap.release()
-plt.ioff()
-plt.show()
-print("Rendering complete!")
