@@ -1,5 +1,5 @@
+#!/usr/bin/env python3
 import time
-
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,47 +9,42 @@ from matplotlib.colors import LinearSegmentedColormap
 # =============== 7-Segment Digit Parsing ==================
 # ==========================================================
 
-threshold = 150  # Average pixel intensity above this is considered "white" (True)
+# Adjust threshold based on your lighting conditions.
+threshold = 150
 
-# Map of 7-segment boolean patterns to digits 0-9
+# Updated mapping table for segments (order: A, B, C, D, E, F, G)
 values = {
-    (True, True, True, False, True, True, True): 0,
-    (False, False, True, False, False, True, False): 1,
-    (True, False, True, True, True, False, True): 2,
-    (True, False, True, True, False, True, True): 3,
-    (False, True, True, True, False, True, False): 4,
-    (True, True, False, True, False, True, True): 5,
-    (True, True, False, True, True, True, True): 6,
-    (True, False, True, False, False, True, False): 7,
+    (True, True, True, True, True, True, False): 0,
+    (False, True, True, False, False, False, False): 1,
+    (True, True, False, True, True, False, True): 2,
+    (True, True, True, True, False, False, True): 3,
+    (False, True, True, False, False, True, True): 4,
+    (True, False, True, True, False, True, True): 5,
+    (True, False, True, True, True, True, True): 6,
+    (True, True, True, False, False, False, False): 7,
     (True, True, True, True, True, True, True): 8,
-    (True, True, True, True, False, True, False): 9
+    (True, True, True, True, False, True, True): 9
 }
 
-
 def GetBoolValues(pixel_list: list[tuple[int, int, int]]) -> list[bool]:
-    """
-    Converts each (R,G,B) pixel into True/False based on threshold.
-    """
+    """Convert each (R,G,B) pixel to True if its average exceeds threshold."""
     bool_list = []
     for pixel in pixel_list:
-        avg_intensity = sum(pixel) / 3.0
-        bool_list.append(avg_intensity > threshold)
+        avg_intensity = sum(int(c) for c in pixel) / 3.0
+        val = avg_intensity > threshold
+        print(f"[DEBUG] Pixel {pixel} -> avg={avg_intensity:.1f}, threshold={threshold} => {val}")
+        bool_list.append(val)
     return bool_list
 
-
 def ReturnSingleNumber(bool_list: list[bool]) -> int:
-    """
-    Takes a 7-element bool list and returns a digit (0-9).
-    Returns -1 if the pattern is not in 'values'.
-    """
-    return values.get(tuple(bool_list), -1)
-
+    """Convert a 7-element boolean list into a digit using the lookup table."""
+    pattern = tuple(bool_list)
+    digit = values.get(pattern, -1)
+    print(f"[DEBUG] 7-seg pattern {pattern} => recognized digit: {digit}")
+    return digit
 
 def GetNumber(numbers: list[list[tuple[int, int, int]]]) -> float:
-    """
-    Converts multiple 7-segment pixel-lists into a float.
-    E.g., three digits => '204' => float(204.0).
-    """
+    """Converts a list-of-lists of segment pixels into a number (e.g., 204 => float(204.0))."""
     digits = []
     for pixel_list in numbers:
         bool_list = GetBoolValues(pixel_list)
@@ -59,143 +54,115 @@ def GetNumber(numbers: list[list[tuple[int, int, int]]]) -> float:
         digits.append(str(digit))
     return float("".join(digits))
 
-
 def safe_get_number(numbers: list[list[tuple[int, int, int]]]) -> float:
-    """
-    Same as GetNumber, but returns 0.0 if a digit is unrecognized.
-    """
+    """Same as GetNumber, but returns 0.0 if any digit is unrecognized."""
     try:
         return GetNumber(numbers)
     except ValueError:
         return 0.0
 
-
 # ==========================================================
-# ========= Fractional Digit Boxes & Segment Offsets ======
+# ========= Fractional Digit Boxes & Segment Offsets ========
 # ==========================================================
 
-"""
-We define 3 digit "boxes" in fractional coordinates:
-(left, top, right, bottom) for each digit.
-Example: digit1_box = (0.05, 0.2, 0.15, 0.5)
-
-Inside each digit box, we define 7 "segment offsets" in [0..1, 0..1].
-We assume a 7-segment shape, so we place them roughly:
-   A = top-center, B = top-right, C = bottom-right,
-   D = bottom-center, E = bottom-left, F = top-left, G = middle-center
-Adjust these to match your real 7-segment positions.
-"""
-
-# 3 bounding boxes for 3 digits, near top-right
+# Three digit boxes (normalized: left, top, right, bottom)
 digit_boxes = [
-    (0.25, 0.10, 0.43, 0.75),  # Digit 1
-    (0.43, 0.10, 0.63, 0.75),  # Digit 2
-    (0.63, 0.10, 0.83, 0.75)  # Digit 3
+    (0.16, 0.44, 0.40, 0.96),   # Digit 1
+    (0.36, 0.40, 0.61, 0.93),   # Digit 2
+    (0.6,   0.38, 0.81, 0.93)    # Digit 3
 ]
 
-# 7 segments (fractional offsets). Tweak as needed!
+# 7 segment offsets (normalized within each digit box)
+# Order: A, B, C, D, E, F, G.
 segment_offsets = [
-    (0.5, 0.1),  # A (top-center)
-    (0.8, 0.3),  # B (upper-right)
-    (0.8, 0.7),  # C (lower-right)
-    (0.5, 0.9),  # D (bottom-center)
-    (0.2, 0.7),  # E (lower-left)
-    (0.2, 0.3),  # F (upper-left)
-    (0.5, 0.5)  # G (middle-center)
+    (0.5, 0.1),   # A (top-center)
+    (0.8, 0.3),   # B (upper-right)
+    (0.8, 0.7),   # C (lower-right)
+    (0.5, 0.9),   # D (bottom-center)
+    (0.2, 0.7),   # E (lower-left)
+    (0.2, 0.3),   # F (upper-left)
+    (0.5, 0.5)    # G (middle-center)
 ]
 
 for i, (l, t, r, b) in enumerate(digit_boxes):
     print(f"Digit {i + 1} box in fraction: left={l}, top={t}, right={r}, bottom={b}")
 
-
-def extract_digit_pixels_fractional(
-        frame_rgb: np.ndarray,
-        digit_box: tuple[float, float, float, float],
-        seg_offsets: list[tuple[float, float]],
-        color_bgr: tuple[int, int, int] = (255, 0, 0),
-        radius: int = 8
-) -> list[tuple[int, int, int]]:
+def extract_digit_pixels_fractional(frame_rgb: np.ndarray,
+                                    digit_box: tuple[float, float, float, float],
+                                    seg_offsets: list[tuple[float, float]],
+                                    radius: int = 8) -> tuple[list[tuple[int, int, int]], np.ndarray]:
     """
-    Given a frame (RGB), a digit box in fractional coords (left, top, right, bottom),
-    and a list of 7 segment offsets (fractional),
-    we compute each segment's absolute pixel in the frame,
-    draw a debug circle in 'color_bgr',
-    and return the list of (R,G,B) values for those 7 segments.
+    Given an RGB frame, a digit box in fractional coords, and segment offsets,
+    compute each segment's absolute pixel coordinates. Draw a circle at each segment:
+      - Green if the segment is "on" (avg intensity > threshold),
+      - Red if "off."
+    Returns the list of pixel values and an overlay image.
     """
     h, w = frame_rgb.shape[:2]
     left_frac, top_frac, right_frac, bottom_frac = digit_box
 
-    # Convert bounding box fractions to absolute pixel coords
-    box_left = int(left_frac * w)
-    box_top = int(top_frac * h)
-    box_right = int(right_frac * w)
+    box_left   = int(left_frac * w)
+    box_top    = int(top_frac * h)
+    box_right  = int(right_frac * w)
     box_bottom = int(bottom_frac * h)
-
-    box_width = box_right - box_left
+    box_width  = box_right - box_left
     box_height = box_bottom - box_top
 
-    # We'll draw on a BGR copy for debug
-    frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-
+    # Create overlay (BGR copy) for drawing
+    overlay = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
     segment_pixels = []
     for (relX, relY) in seg_offsets:
         px = box_left + int(relX * box_width)
         py = box_top + int(relY * box_height)
-
-        # If (px, py) is in range, read the pixel from frame_rgb
         if 0 <= px < w and 0 <= py < h:
-            pixel_rgb = frame_rgb[py, px]  # (R,G,B)
+            pixel_rgb = frame_rgb[py, px]
             segment_pixels.append(tuple(pixel_rgb))
-            cv2.circle(frame_bgr, (px, py), radius, color_bgr, -1)
+            avg_intensity = sum(int(c) for c in pixel_rgb) / 3.0
+            # Choose color based on on/off state
+            if avg_intensity > threshold:
+                color = (0, 255, 0)  # green in BGR
+            else:
+                color = (0, 0, 255)  # red in BGR
+            cv2.circle(overlay, (px, py), radius, color, -1)
         else:
-            # Out of range => black or skip
             segment_pixels.append((0, 0, 0))
+    return segment_pixels, overlay
 
-    return segment_pixels, frame_bgr
-
-
-def read_thermometer(frame_rgb: np.ndarray) -> float:
+def read_digits_from_frame(frame_rgb: np.ndarray,
+                           digit_boxes: list[tuple[float, float, float, float]],
+                           seg_offsets: list[tuple[float, float]]) -> tuple[float, np.ndarray]:
     """
-    Reads 3 digits from the thermometer using fractional bounding boxes.
-    Returns a float like "20.4" or "204" if decimal logic is not used.
+    Process each digit box to extract its 7-segment pixels and recognize the digit.
+    Merge the overlay images from all boxes so that all segment markers are visible.
+    Build a reading string in the format "<digit1><digit2>.<digit3>".
+    Returns the reading (float) and the combined overlay.
     """
-
-    # For debug, we'll keep merging the BGR overlays from each digit
-    merged_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-
-    # We parse 3 digits, storing each in a list-of-lists for 7 segments
     all_digit_pixels = []
-    digit_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]  # BGR for each digit
-
-    for i, digit_box in enumerate(digit_boxes):
-        seg_pixels, digit_bgr = extract_digit_pixels_fractional(
-            frame_rgb, digit_box, segment_offsets,
-            color_bgr=digit_colors[i % len(digit_colors)],
-            radius=8
-        )
+    overlays = []
+    for box in digit_boxes:
+        seg_pixels, overlay = extract_digit_pixels_fractional(frame_rgb, box, seg_offsets)
         all_digit_pixels.append(seg_pixels)
+        overlays.append(overlay)
+    # Merge overlays so all markers are visible
+    combined_overlay = overlays[0].copy()
+    for o in overlays[1:]:
+        combined_overlay = cv2.addWeighted(combined_overlay, 0.5, o, 0.5, 0)
 
-        # Merge the drawn circles onto merged_bgr
-        merged_bgr = cv2.addWeighted(merged_bgr, 0.7, digit_bgr, 0.3, 0)
-
-    # Convert each digit’s 7 pixels into a single number
-    # (If you want multiple digits => [digit1, digit2, digit3], then parse them together)
-    val1 = safe_get_number([all_digit_pixels[0]])  # float
-    val2 = safe_get_number([all_digit_pixels[1]])
-    val3 = safe_get_number([all_digit_pixels[2]])
-
-    # Build a reading, e.g. "val1val2.val3" => "201.5" or whatever
-    reading_str = f"{int(val1)}{int(val2)}.{int(val3)}"
+    recognized_digits = []
+    for seg_pixels in all_digit_pixels:
+        d = safe_get_number([seg_pixels])
+        recognized_digits.append(d)
+    # Build reading string: first two digits are integer part, third is fractional.
+    reading_str = f"{int(recognized_digits[0])}{int(recognized_digits[1])}.{int(recognized_digits[2])}"
     try:
-        reading_float = float(reading_str)
+        reading = float(reading_str)
     except ValueError:
-        reading_float = 0.0
-
-    return reading_float, merged_bgr
-
+        reading = 0.0
+    print(f"[DEBUG] Recognized digits: {recognized_digits} -> Reading: {reading_str}")
+    return reading, combined_overlay
 
 # ==========================================================
-# ======= Now The Main Script with Heatmap & Matplotlib ====
+# ======= Main Script with Heatmap & Matplotlib UI =========
 # ==========================================================
 
 def main():
@@ -219,8 +186,8 @@ def main():
     estimated_time = total_updates * update_delay
     print(f"Estimated total rendering time: {estimated_time:.2f} seconds.")
 
-    # --- Create a Custom Colormap ---
-    colors = [(0, 0, 1), (1, 1, 0), (1, 0, 0)]  # Blue → Yellow → Red
+    # --- Create a Custom Colormap for the Heatmap ---
+    colors = [(0, 0, 1), (1, 1, 0), (1, 0, 0)]  # Blue -> Yellow -> Red
     blue_yellow_red = LinearSegmentedColormap.from_list("blue_yellow_red", colors, N=256)
 
     # --- Initialize Matplotlib UI ---
@@ -258,17 +225,15 @@ def main():
     values_ax.set_xlim(0, 1)
     values_ax.set_ylim(0, 1)
     values_ax.axis("off")
-    values_ax.set_title("Temperaturas recientes", fontsize=12)
+    values_ax.set_title("Recent Temperatures", fontsize=12)
 
     plt.tight_layout()
     plt.show()
 
-    userQuit = False  # Flag to track if the user pressed a key to quit
+    userQuit = False  # Flag for user exit
 
     def update_ui():
         nonlocal userQuit
-
-        # Check if user pressed any key in the figure
         if plt.waitforbuttonpress(0.01):
             userQuit = True
 
@@ -282,18 +247,16 @@ def main():
             plt.pause(0.01)
             return 0.0
 
-        # Convert to RGB for fractional bounding logic
+        # Convert frame to RGB for processing
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-
-        # Attempt reading thermometer
-        reading_float, overlay_bgr = read_thermometer(frame_rgb)
+        # Get reading and overlay from our three digit boxes
+        reading_float, overlay_bgr = read_digits_from_frame(frame_rgb, digit_boxes, segment_offsets)
         detected_values.append(reading_float)
 
-        # Show debug overlay in Matplotlib (convert overlay_bgr->RGB)
+        # Convert overlay to RGB for Matplotlib display
         debug_rgb = cv2.cvtColor(overlay_bgr, cv2.COLOR_BGR2RGB)
         webcam_im.set_data(debug_rgb)
 
-        # Update heatmap & recent values
         heatmap_im.set_data(temperature_data)
         values_text.set_text("\n".join(f"{val:.1f}" for val in detected_values[-5:]))
 
@@ -310,32 +273,20 @@ def main():
             for x in range(width):
                 if userQuit:
                     break
-
-                # 1) New reading
                 reading_float = update_ui()
-
-                # 2) Store in heatmap
                 temperature_data[y, x] = reading_float
-
-                # 3) Print status
                 elapsed = time.time() - start_time
                 remain = max(0, estimated_time - elapsed)
                 print(f"Updated pixel ({x}, {y}) -> {reading_float:.1f} °C | Remaining: {remain:.2f}s")
-
-                # 4) If user pressed a key
                 if userQuit:
                     break
-
                 time.sleep(update_delay)
-
     except KeyboardInterrupt:
         print("\nProcess interrupted manually.")
 
-    # Cleanup
     cap.release()
     plt.close('all')
     print("Rendering complete! Exiting now.")
-
 
 if __name__ == "__main__":
     main()
