@@ -65,9 +65,9 @@ def safe_get_number(numbers):
 # -----------------------------
 # Three digit boxes in normalized coordinates (left, top, right, bottom)
 digit_boxes = [
-    (0.16, 0.44, 0.40, 0.96),   # Digit 1
-    (0.36, 0.40, 0.61, 0.93),   # Digit 2
-    (0.6,   0.38, 0.81, 0.93)    # Digit 3
+    (0.17, 0.44, 0.41, 0.96),   # Digit 1
+    (0.37, 0.40, 0.62, 0.93),   # Digit 2
+    (0.61, 0.38, 0.82, 0.93)    # Digit 3
 ]
 
 # 7 segment offsets (normalized within each digit box)

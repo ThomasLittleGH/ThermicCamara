@@ -67,9 +67,9 @@ def safe_get_number(numbers: list[list[tuple[int, int, int]]]) -> float:
 
 # Three digit boxes (normalized: left, top, right, bottom)
 digit_boxes = [
-    (0.16, 0.44, 0.40, 0.96),   # Digit 1
-    (0.36, 0.40, 0.61, 0.93),   # Digit 2
-    (0.6,   0.38, 0.81, 0.93)    # Digit 3
+    (0.17, 0.44, 0.41, 0.96),   # Digit 1
+    (0.37, 0.40, 0.62, 0.93),   # Digit 2
+    (0.61, 0.38, 0.82, 0.93)    # Digit 3
 ]
 
 # 7 segment offsets (normalized within each digit box)
@@ -275,6 +275,23 @@ def main():
                     break
                 reading_float = update_ui()
                 temperature_data[y, x] = reading_float
+
+                # Dynamically update the colormap limits.
+                # We'll ignore zero values (assuming they are placeholders for unrecorded readings)
+                nonzero_vals = temperature_data[temperature_data > 0]
+                if nonzero_vals.size > 0:
+                    current_min = np.min(nonzero_vals)
+                else:
+                    current_min = 20  # default minimum if no valid reading exists
+                current_max = np.max(temperature_data)
+                if current_max == 0:
+                    current_max = 50  # default maximum if no valid reading exists
+                # Prevent degenerate case:
+                if current_min == current_max:
+                    current_min -= 1
+                    current_max += 1
+                heatmap_im.set_clim(current_min, current_max)
+
                 elapsed = time.time() - start_time
                 remain = max(0, estimated_time - elapsed)
                 print(f"Updated pixel ({x}, {y}) -> {reading_float:.1f} °C | Remaining: {remain:.2f}s")
