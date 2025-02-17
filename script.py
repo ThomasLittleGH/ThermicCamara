@@ -270,7 +270,14 @@ def main():
         for y in range(height):
             if userQuit:
                 break
-            for x in range(width):
+
+            # Determine x range based on the row index for snake pattern
+            if y % 2 == 0:
+                x_range = range(width)
+            else:
+                x_range = range(width - 1, -1, -1)
+
+            for x in x_range:
                 if userQuit:
                     break
                 reading_float = update_ui()
@@ -302,8 +309,7 @@ def main():
         print("\nProcess interrupted manually.")
 
     cap.release()
-    plt.close('all')
-    print("Rendering complete! Exiting now.")
+    time.sleep(5)
 
 if __name__ == "__main__":
     main()
