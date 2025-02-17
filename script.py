@@ -1,55 +1,63 @@
+#!/usr/bin/env python3
+import threading
 import time
+from io import BytesIO
 
 import cv2
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from flask import Flask, Response, render_template_string
 from matplotlib.colors import LinearSegmentedColormap
 
-# ==========================================================
-# =============== 7-Segment Digit Parsing ==================
-# ==========================================================
+matplotlib.use('Agg')
 
-threshold = 150  # Average pixel intensity above this is considered "white" (True)
+# ==========================================================
+# Global Configuration and Variables
+# ==========================================================
+GRID_WIDTH = 10  # Number of horizontal grid cells
+GRID_HEIGHT = 10  # Number of vertical grid cells
+update_delay = 0.05  # Delay between cell updates during heatmap generation
 
-# Map of 7-segment boolean patterns to digits 0-9
+# Global arrays to hold the temperature readings and webcam frame
+temperature_data = np.zeros((GRID_HEIGHT, GRID_WIDTH))
+latest_reading = 0.0
+latest_frame = None  # Latest webcam frame (BGR format)
+
+# Flag to control heatmap generation (one scan at a time)
+heatmap_running = False
+
+# ==========================================================
+# 7-Segment Digit Parsing Functions
+# ==========================================================
+threshold = 150  # Adjust based on your lighting conditions
+
+# Mapping table for segments (order: A, B, C, D, E, F, G)
 values = {
-    (True, True, True, False, True, True, True): 0,
-    (False, False, True, False, False, True, False): 1,
-    (True, False, True, True, True, False, True): 2,
-    (True, False, True, True, False, True, True): 3,
-    (False, True, True, True, False, True, False): 4,
-    (True, True, False, True, False, True, True): 5,
-    (True, True, False, True, True, True, True): 6,
-    (True, False, True, False, False, True, False): 7,
+    (True, True, True, True, True, True, False): 0,
+    (False, True, True, False, False, False, False): 1,
+    (True, True, False, True, True, False, True): 2,
+    (True, True, True, True, False, False, True): 3,
+    (False, True, True, False, False, True, True): 4,
+    (True, False, True, True, False, True, True): 5,
+    (True, False, True, True, True, True, True): 6,
+    (True, True, True, False, False, False, False): 7,
     (True, True, True, True, True, True, True): 8,
-    (True, True, True, True, False, True, False): 9
+    (True, True, True, True, False, True, True): 9
 }
 
-
 def GetBoolValues(pixel_list: list[tuple[int, int, int]]) -> list[bool]:
-    """
-    Converts each (R,G,B) pixel into True/False based on threshold.
-    """
     bool_list = []
     for pixel in pixel_list:
-        avg_intensity = sum(pixel) / 3.0
+        avg_intensity = sum(int(c) for c in pixel) / 3.0
         bool_list.append(avg_intensity > threshold)
     return bool_list
 
-
 def ReturnSingleNumber(bool_list: list[bool]) -> int:
-    """
-    Takes a 7-element bool list and returns a digit (0-9).
-    Returns -1 if the pattern is not in 'values'.
-    """
-    return values.get(tuple(bool_list), -1)
-
+    pattern = tuple(bool_list)
+    return values.get(pattern, -1)
 
 def GetNumber(numbers: list[list[tuple[int, int, int]]]) -> float:
-    """
-    Converts multiple 7-segment pixel-lists into a float.
-    E.g., three digits => '204' => float(204.0).
-    """
     digits = []
     for pixel_list in numbers:
         bool_list = GetBoolValues(pixel_list)
@@ -59,41 +67,21 @@ def GetNumber(numbers: list[list[tuple[int, int, int]]]) -> float:
         digits.append(str(digit))
     return float("".join(digits))
 
-
 def safe_get_number(numbers: list[list[tuple[int, int, int]]]) -> float:
-    """
-    Same as GetNumber, but returns 0.0 if a digit is unrecognized.
-    """
     try:
         return GetNumber(numbers)
     except ValueError:
         return 0.0
 
-
 # ==========================================================
-# ========= Fractional Digit Boxes & Segment Offsets ======
+# Fractional Digit Boxes & Segment Offsets
 # ==========================================================
-
-"""
-We define 3 digit "boxes" in fractional coordinates:
-(left, top, right, bottom) for each digit.
-Example: digit1_box = (0.05, 0.2, 0.15, 0.5)
-
-Inside each digit box, we define 7 "segment offsets" in [0..1, 0..1].
-We assume a 7-segment shape, so we place them roughly:
-   A = top-center, B = top-right, C = bottom-right,
-   D = bottom-center, E = bottom-left, F = top-left, G = middle-center
-Adjust these to match your real 7-segment positions.
-"""
-
-# 3 bounding boxes for 3 digits, near top-right
 digit_boxes = [
-    (0.25, 0.10, 0.43, 0.75),  # Digit 1
-    (0.43, 0.10, 0.63, 0.75),  # Digit 2
-    (0.63, 0.10, 0.83, 0.75)  # Digit 3
+    (0.17, 0.44, 0.41, 0.96),  # Digit 1
+    (0.37, 0.40, 0.62, 0.93),  # Digit 2
+    (0.61, 0.38, 0.82, 0.93)  # Digit 3
 ]
 
-# 7 segments (fractional offsets). Tweak as needed!
 segment_offsets = [
     (0.5, 0.1),  # A (top-center)
     (0.8, 0.3),  # B (upper-right)
@@ -104,238 +92,255 @@ segment_offsets = [
     (0.5, 0.5)  # G (middle-center)
 ]
 
-for i, (l, t, r, b) in enumerate(digit_boxes):
-    print(f"Digit {i + 1} box in fraction: left={l}, top={t}, right={r}, bottom={b}")
 
-
-def extract_digit_pixels_fractional(
-        frame_rgb: np.ndarray,
-        digit_box: tuple[float, float, float, float],
-        seg_offsets: list[tuple[float, float]],
-        color_bgr: tuple[int, int, int] = (255, 0, 0),
-        radius: int = 8
-) -> list[tuple[int, int, int]]:
-    """
-    Given a frame (RGB), a digit box in fractional coords (left, top, right, bottom),
-    and a list of 7 segment offsets (fractional),
-    we compute each segment's absolute pixel in the frame,
-    draw a debug circle in 'color_bgr',
-    and return the list of (R,G,B) values for those 7 segments.
-    """
+def extract_digit_pixels_fractional(frame_rgb: np.ndarray,
+                                    digit_box: tuple[float, float, float, float],
+                                    seg_offsets: list[tuple[float, float]],
+                                    radius: int = 8) -> tuple[list[tuple[int, int, int]], np.ndarray]:
     h, w = frame_rgb.shape[:2]
     left_frac, top_frac, right_frac, bottom_frac = digit_box
-
-    # Convert bounding box fractions to absolute pixel coords
     box_left = int(left_frac * w)
     box_top = int(top_frac * h)
     box_right = int(right_frac * w)
     box_bottom = int(bottom_frac * h)
-
     box_width = box_right - box_left
     box_height = box_bottom - box_top
 
-    # We'll draw on a BGR copy for debug
-    frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-
+    overlay = frame_rgb.copy()  # Dummy overlay (unused in web version)
     segment_pixels = []
     for (relX, relY) in seg_offsets:
         px = box_left + int(relX * box_width)
         py = box_top + int(relY * box_height)
-
-        # If (px, py) is in range, read the pixel from frame_rgb
         if 0 <= px < w and 0 <= py < h:
-            pixel_rgb = frame_rgb[py, px]  # (R,G,B)
+            pixel_rgb = frame_rgb[py, px]
             segment_pixels.append(tuple(pixel_rgb))
-            cv2.circle(frame_bgr, (px, py), radius, color_bgr, -1)
         else:
-            # Out of range => black or skip
             segment_pixels.append((0, 0, 0))
+    return segment_pixels, overlay
 
-    return segment_pixels, frame_bgr
 
-
-def read_thermometer(frame_rgb: np.ndarray) -> float:
-    """
-    Reads 3 digits from the thermometer using fractional bounding boxes.
-    Returns a float like "20.4" or "204" if decimal logic is not used.
-    """
-
-    # For debug, we'll keep merging the BGR overlays from each digit
-    merged_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-
-    # We parse 3 digits, storing each in a list-of-lists for 7 segments
+def read_digits_from_frame(frame_rgb: np.ndarray,
+                           digit_boxes: list[tuple[float, float, float, float]],
+                           seg_offsets: list[tuple[float, float]]) -> float:
     all_digit_pixels = []
-    digit_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]  # BGR for each digit
-
-    for i, digit_box in enumerate(digit_boxes):
-        seg_pixels, digit_bgr = extract_digit_pixels_fractional(
-            frame_rgb, digit_box, segment_offsets,
-            color_bgr=digit_colors[i % len(digit_colors)],
-            radius=8
-        )
+    for box in digit_boxes:
+        seg_pixels, _ = extract_digit_pixels_fractional(frame_rgb, box, seg_offsets)
         all_digit_pixels.append(seg_pixels)
-
-        # Merge the drawn circles onto merged_bgr
-        merged_bgr = cv2.addWeighted(merged_bgr, 0.7, digit_bgr, 0.3, 0)
-
-    # Convert each digit’s 7 pixels into a single number
-    # (If you want multiple digits => [digit1, digit2, digit3], then parse them together)
-    val1 = safe_get_number([all_digit_pixels[0]])  # float
-    val2 = safe_get_number([all_digit_pixels[1]])
-    val3 = safe_get_number([all_digit_pixels[2]])
-
-    # Build a reading, e.g. "val1val2.val3" => "201.5" or whatever
-    reading_str = f"{int(val1)}{int(val2)}.{int(val3)}"
+    recognized_digits = []
+    for seg_pixels in all_digit_pixels:
+        d = safe_get_number([seg_pixels])
+        recognized_digits.append(d)
+    reading_str = f"{int(recognized_digits[0])}{int(recognized_digits[1])}.{int(recognized_digits[2])}"
     try:
-        reading_float = float(reading_str)
+        reading = float(reading_str)
     except ValueError:
-        reading_float = 0.0
+        reading = 0.0
+    return reading
 
-    return reading_float, merged_bgr
+# ==========================================================
+# Dummy Servo Functions
+# ==========================================================
+def move_servo_left():
+    print("Dummy: Moving servo left")
+
+
+def move_servo_right():
+    print("Dummy: Moving servo right")
+
+
+def stop_servo():
+    print("Dummy: Stopping servo")
 
 
 # ==========================================================
-# ======= Now The Main Script with Heatmap & Matplotlib ====
+# Flask Web Server and Background Threads
 # ==========================================================
+app = Flask(__name__)
 
-def main():
-    # --- User Input for Grid Size ---
-    width = int(input("Enter the number of pixels wide: "))
-    height = int(input("Enter the number of pixels tall: "))
-    update_delay = 0.05  # Adjust for smoother updates
+# Create a custom colormap (Blue -> Yellow -> Red)
+colors = [(0, 0, 1), (1, 1, 0), (1, 0, 0)]
+blue_yellow_red = LinearSegmentedColormap.from_list("blue_yellow_red", colors, N=256)
 
-    # --- Webcam Setup ---
-    cap = cv2.VideoCapture(0)  # Adjust index if necessary
+
+@app.route('/')
+def index():
+    # Place heatmap and webcam feed side by side.
+    html = '''
+    <html>
+      <head>
+        <title>Thermal Heatmap & Webcam Feed</title>
+      </head>
+      <body>
+        <h1>Thermal Heatmap & Webcam Feed</h1>
+        <table>
+          <tr>
+            <td>
+              <h2>Thermal Heatmap</h2>
+              <img src="/heatmap.png" alt="Heatmap"/>
+              <br/>
+              <button onclick="startScan()">Start Scan</button>
+              <span id="scanStatus"></span>
+            </td>
+            <td>
+              <h2>Webcam Feed</h2>
+              <img src="/video_feed" alt="Webcam Feed" style="max-width:640px;"/>
+            </td>
+          </tr>
+        </table>
+        <p>Latest reading: {{latest}}</p>
+        <p>
+          <a href="/servo/left">Move Servo Left</a> |
+          <a href="/servo/right">Move Servo Right</a> |
+          <a href="/servo/stop">Stop Servo</a>
+        </p>
+        <script>
+          function startScan() {
+            document.getElementById("scanStatus").innerHTML = "Scan started...";
+            fetch('/heatmap/start')
+              .then(response => response.text())
+              .then(data => {
+                document.getElementById("scanStatus").innerHTML = data;
+              })
+              .catch(error => {
+                document.getElementById("scanStatus").innerHTML = "Error starting scan";
+              });
+          }
+        </script>
+      </body>
+    </html>
+    '''
+    return render_template_string(html, latest=latest_reading)
+
+
+@app.route('/heatmap.png')
+def heatmap_png():
+    # Generate a heatmap image from the current temperature_data array.
+    fig, ax = plt.subplots()
+    nonzero_vals = temperature_data[temperature_data > 0]
+    current_min = np.min(nonzero_vals) if nonzero_vals.size > 0 else 20
+    current_max = np.max(temperature_data) if np.max(temperature_data) > 0 else 50
+    if current_min == current_max:
+        current_min -= 1
+        current_max += 1
+    im = ax.imshow(temperature_data, cmap=blue_yellow_red,
+                   interpolation='bicubic', origin='lower',
+                   vmin=current_min, vmax=current_max)
+    ax.set_title("Thermal Heatmap")
+    plt.colorbar(im, ax=ax)
+    buf = BytesIO()
+    plt.savefig(buf, format='png')
+    plt.close(fig)
+    buf.seek(0)
+    return Response(buf.getvalue(), mimetype='image/png')
+
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_video_feed(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/servo/left')
+def servo_left():
+    move_servo_left()
+    return "Servo moved left (dummy)."
+
+
+@app.route('/servo/right')
+def servo_right():
+    move_servo_right()
+    return "Servo moved right (dummy)."
+
+
+@app.route('/servo/stop')
+def servo_stop():
+    stop_servo()
+    return "Servo stopped (dummy)."
+
+
+@app.route('/heatmap/start')
+def heatmap_start():
+    global heatmap_running
+    if not heatmap_running:
+        threading.Thread(target=generate_heatmap, daemon=True).start()
+        return "Scan started."
+    else:
+        return "Scan already running."
+
+
+def gen_video_feed():
+    """Generator that yields the latest webcam frame as a JPEG image."""
+    global latest_frame
+    while True:
+        if latest_frame is None:
+            time.sleep(0.1)
+            continue
+        ret, jpeg = cv2.imencode('.jpg', latest_frame)
+        if not ret:
+            continue
+        frame = jpeg.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        time.sleep(0.05)
+
+
+def camera_loop():
+    """Continuously capture frames from the camera for the webcam feed."""
+    global latest_frame
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("[ERROR] Could not access the camera.")
         return
-
-    # Webcam resolution
-    webcam_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    webcam_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    # --- Estimated Time Calculation ---
-    total_updates = width * height
-    estimated_time = total_updates * update_delay
-    print(f"Estimated total rendering time: {estimated_time:.2f} seconds.")
-
-    # --- Create a Custom Colormap ---
-    colors = [(0, 0, 1), (1, 1, 0), (1, 0, 0)]  # Blue → Yellow → Red
-    blue_yellow_red = LinearSegmentedColormap.from_list("blue_yellow_red", colors, N=256)
-
-    # --- Initialize Matplotlib UI ---
-    plt.ion()
-    fig, axes = plt.subplots(
-        2, 2, figsize=(16, 9),
-        gridspec_kw={'height_ratios': [4, 1], 'width_ratios': [4, 1]}
-    )
-
-    manager = plt.get_current_fig_manager()
     try:
-        manager.full_screen_toggle()
-    except AttributeError:
-        pass
+        while True:
+            ret, frame_bgr = cap.read()
+            if not ret:
+                continue
+            latest_frame = frame_bgr.copy()
+            time.sleep(0.05)
+    except Exception as e:
+        print("Camera loop exception:", e)
+    finally:
+        cap.release()
 
-    # --- Heatmap Panel (Larger) ---
-    temperature_data = np.zeros((height, width))
-    heatmap_ax = axes[0, 0]
-    heatmap_im = heatmap_ax.imshow(
-        temperature_data, cmap=blue_yellow_red,
-        interpolation='bicubic', origin='lower', vmin=20, vmax=50
-    )
-    heatmap_ax.set_title("Thermal Heatmap", fontsize=14)
-    fig.colorbar(heatmap_im, ax=heatmap_ax, orientation='vertical', label='Temperature (°C)')
 
-    # --- Webcam Panel (Smaller) ---
-    webcam_ax = axes[1, 0]
-    webcam_im = webcam_ax.imshow(np.zeros((webcam_height, webcam_width, 3), dtype=np.uint8))
-    webcam_ax.set_title("Webcam (Debug Overlay)", fontsize=12)
-
-    # --- Recent Values Panel (Smaller) ---
-    values_ax = axes[0, 1]
-    detected_values = []
-    values_text = values_ax.text(0.5, 0.5, "", fontsize=14, va="center", ha="center")
-    values_ax.set_xlim(0, 1)
-    values_ax.set_ylim(0, 1)
-    values_ax.axis("off")
-    values_ax.set_title("Temperaturas recientes", fontsize=12)
-
-    plt.tight_layout()
-    plt.show()
-
-    userQuit = False  # Flag to track if the user pressed a key to quit
-
-    def update_ui():
-        nonlocal userQuit
-
-        # Check if user pressed any key in the figure
-        if plt.waitforbuttonpress(0.01):
-            userQuit = True
-
-        ret, frame_bgr = cap.read()
-        if not ret:
-            print("[WARNING] Could not read webcam frame.")
-            detected_values.append(0.0)
-            heatmap_im.set_data(temperature_data)
-            values_text.set_text("\n".join(map(str, detected_values[-5:])))
-            fig.canvas.draw_idle()
-            plt.pause(0.01)
-            return 0.0
-
-        # Convert to RGB for fractional bounding logic
-        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-
-        # Attempt reading thermometer
-        reading_float, overlay_bgr = read_thermometer(frame_rgb)
-        detected_values.append(reading_float)
-
-        # Show debug overlay in Matplotlib (convert overlay_bgr->RGB)
-        debug_rgb = cv2.cvtColor(overlay_bgr, cv2.COLOR_BGR2RGB)
-        webcam_im.set_data(debug_rgb)
-
-        # Update heatmap & recent values
-        heatmap_im.set_data(temperature_data)
-        values_text.set_text("\n".join(f"{val:.1f}" for val in detected_values[-5:]))
-
-        fig.canvas.draw_idle()
-        plt.pause(0.01)
-        return reading_float
-
-    start_time = time.time()
-
+def generate_heatmap():
+    """
+    Generate one heatmap update over the grid in snake pattern.
+    Updates temperature_data cell by cell. This function stops when complete.
+    """
+    global heatmap_running, temperature_data, latest_reading
+    heatmap_running = True
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("[ERROR] Could not access the camera for heatmap generation.")
+        heatmap_running = False
+        return
     try:
-        for y in range(height):
-            if userQuit:
+        for y in range(GRID_HEIGHT):
+            if not heatmap_running:
                 break
-            for x in range(width):
-                if userQuit:
+            x_range = range(GRID_WIDTH) if y % 2 == 0 else range(GRID_WIDTH - 1, -1, -1)
+            for x in x_range:
+                if not heatmap_running:
                     break
-
-                # 1) New reading
-                reading_float = update_ui()
-
-                # 2) Store in heatmap
-                temperature_data[y, x] = reading_float
-
-                # 3) Print status
-                elapsed = time.time() - start_time
-                remain = max(0, estimated_time - elapsed)
-                print(f"Updated pixel ({x}, {y}) -> {reading_float:.1f} °C | Remaining: {remain:.2f}s")
-
-                # 4) If user pressed a key
-                if userQuit:
-                    break
-
+                ret, frame_bgr = cap.read()
+                if not ret:
+                    continue
+                frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+                reading = read_digits_from_frame(frame_rgb, digit_boxes, segment_offsets)
+                temperature_data[y, x] = reading
+                latest_reading = reading
                 time.sleep(update_delay)
-
-    except KeyboardInterrupt:
-        print("\nProcess interrupted manually.")
-
-    # Cleanup
-    cap.release()
-    plt.close('all')
-    print("Rendering complete! Exiting now.")
+    except Exception as e:
+        print("Heatmap generation exception:", e)
+    finally:
+        cap.release()
+        heatmap_running = False
+    print("Scan complete.")
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    # Start the continuous camera loop for the webcam feed.
+    threading.Thread(target=camera_loop, daemon=True).start()
+    # Run the Flask app on all interfaces (useful for a Pi accessed via SSH)
+    app.run(host='0.0.0.0', port=500)
