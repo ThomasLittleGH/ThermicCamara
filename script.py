@@ -343,4 +343,4 @@ if __name__ == '__main__':
     # Start the continuous camera loop for the webcam feed.
     threading.Thread(target=camera_loop, daemon=True).start()
     # Run the Flask app on all interfaces (useful for a Pi accessed via SSH)
-    app.run(host='0.0.0.0', port=500)
+    app.run(host='0.0.0.0', port=5000)

@@ -13,16 +13,19 @@ values = {
     (True, True, True, True, False, True, False): 9
 }
 
+
 def GetBoolValues(PixelList: list[tuple[int, int, int]]):
-    #""" Converts a list of (R, G, B) tuples into boolean values based on threshold """
+    # """ Converts a list of (R, G, B) tuples into boolean values based on threshold """
     return [(sum(pixel) / 3) > threshold for pixel in PixelList]
 
+
 def ReturnSingleNumber(BoolTable: list[bool]) -> int:
-    #""" Maps a boolean list to a digit or returns -1 if not found """
+    # """ Maps a boolean list to a digit or returns -1 if not found """
     return values.get(tuple(BoolTable), -1)
 
+
 def GetNumber(numbers: list[list[tuple[int, int, int]]]) -> float:
-    #""" Converts multiple lists of pixel values into a numerical float """
+    # """ Converts multiple lists of pixel values into a numerical float """
     FinalNumber = []
     for number in numbers:
         BoolValues = GetBoolValues(number)
@@ -32,8 +35,10 @@ def GetNumber(numbers: list[list[tuple[int, int, int]]]) -> float:
         FinalNumber.append(str(ResultNumber))
     return float("".join(FinalNumber))
 
+
 # Testing with a valid pixel input
 test_pixels = [
-    [(255, 255, 255), (0, 0, 0), (255, 255, 255), (255, 255, 255), (0, 0, 0), (255, 255, 255), (255, 255, 255)]  # Example pixel values
+    [(255, 255, 255), (0, 0, 0), (255, 255, 255), (255, 255, 255), (0, 0, 0), (255, 255, 255), (255, 255, 255)]
+    # Example pixel values
 ]
 print(GetNumber(test_pixels))  # Adjust pixels as per the required pattern

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import cv2
-import numpy as np
 
 # -----------------------------
 # 7-Segment Parsing Parameters
@@ -21,6 +20,7 @@ values = {
     (True, True, True, True, False, True, True): 9
 }
 
+
 def GetBoolValues(pixel_list):
     """
     Given a list of (R, G, B) pixel values, return a list of booleans.
@@ -34,6 +34,7 @@ def GetBoolValues(pixel_list):
         bool_list.append(val)
     return bool_list
 
+
 def ReturnSingleNumber(bool_list):
     """
     Convert the 7-element boolean list into a digit using our lookup table.
@@ -42,6 +43,7 @@ def ReturnSingleNumber(bool_list):
     digit = values.get(pattern, -1)
     print(f"[DEBUG] 7-seg pattern {pattern} => recognized digit: {digit}")
     return digit
+
 
 def safe_get_number(numbers):
     """
@@ -60,27 +62,29 @@ def safe_get_number(numbers):
     except ValueError:
         return 0.0
 
+
 # -----------------------------
 # Digit Box & Segment Offsets
 # -----------------------------
 # Three digit boxes in normalized coordinates (left, top, right, bottom)
 digit_boxes = [
-    (0.17, 0.44, 0.41, 0.96),   # Digit 1
-    (0.37, 0.40, 0.62, 0.93),   # Digit 2
-    (0.61, 0.38, 0.82, 0.93)    # Digit 3
+    (0.17, 0.44, 0.41, 0.96),  # Digit 1
+    (0.37, 0.40, 0.62, 0.93),  # Digit 2
+    (0.61, 0.38, 0.82, 0.93)  # Digit 3
 ]
 
 # 7 segment offsets (normalized within each digit box)
 # Order: A, B, C, D, E, F, G.
 segment_offsets = [
-    (0.5, 0.1),   # A (top-center)
-    (0.8, 0.3),   # B (upper-right)
-    (0.8, 0.7),   # C (lower-right)
-    (0.5, 0.9),   # D (bottom-center)
-    (0.2, 0.7),   # E (lower-left)
-    (0.2, 0.3),   # F (upper-left)
-    (0.5, 0.5)    # G (middle-center)
+    (0.5, 0.1),  # A (top-center)
+    (0.8, 0.3),  # B (upper-right)
+    (0.8, 0.7),  # C (lower-right)
+    (0.5, 0.9),  # D (bottom-center)
+    (0.2, 0.7),  # E (lower-left)
+    (0.2, 0.3),  # F (upper-left)
+    (0.5, 0.5)  # G (middle-center)
 ]
+
 
 def extract_digit_pixels_fractional(frame_rgb, digit_box, seg_offsets, radius=8):
     """
@@ -94,11 +98,11 @@ def extract_digit_pixels_fractional(frame_rgb, digit_box, seg_offsets, radius=8)
     h, w = frame_rgb.shape[:2]
     left_frac, top_frac, right_frac, bottom_frac = digit_box
 
-    box_left   = int(left_frac * w)
-    box_top    = int(top_frac * h)
-    box_right  = int(right_frac * w)
+    box_left = int(left_frac * w)
+    box_top = int(top_frac * h)
+    box_right = int(right_frac * w)
     box_bottom = int(bottom_frac * h)
-    box_width  = box_right - box_left
+    box_width = box_right - box_left
     box_height = box_bottom - box_top
 
     overlay = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
@@ -119,6 +123,7 @@ def extract_digit_pixels_fractional(frame_rgb, digit_box, seg_offsets, radius=8)
         else:
             segment_pixels.append((0, 0, 0))
     return segment_pixels, overlay
+
 
 def read_digits_from_frame(frame_rgb, digit_boxes, seg_offsets):
     """
@@ -148,6 +153,7 @@ def read_digits_from_frame(frame_rgb, digit_boxes, seg_offsets):
     reading = float(reading_str)
     print(f"[DEBUG] Recognized digits: {recognized_digits} -> Reading: {reading_str}")
     return reading, combined_overlay
+
 
 def main():
     cap = cv2.VideoCapture(0)  # Open the default webcam
@@ -186,6 +192,7 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
